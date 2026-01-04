@@ -1,0 +1,208 @@
+version: "3.9"
+
+services:
+  iot-controller:
+    build:
+      context: ../services/iot-controller
+    env_file: ../.env
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - PROMETHEUS_PORT=${CONTROLLER_METRICS_PORT}
+    depends_on:
+      - mongo
+      - rabbitmq
+    ports:
+      - "${CONTROLLER_PORT}:8000"
+    networks:
+      - backend
+
+  rule-engine:
+    build:
+      context: ../services/rule-engine
+    env_file: ../.env
+    environment:
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - PROMETHEUS_PORT=${RULE_ENGINE_METRICS_PORT}
+    depends_on:
+      - rabbitmq
+      - postgres
+    networks:
+      - backend
+
+  data-simulator:
+    build:
+      context: ../services/data-simulator
+    env_file: ../.env
+    environment:
+      - CONTROLLER_URL=${CONTROLLER_URL}
+      - DEVICES_COUNT=${SIM_DEVICES_COUNT}
+      - SEND_INTERVAL=${SIM_SEND_INTERVAL}
+    depends_on:
+      - iot-controller
+    networks:
+      - backend
+
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MGMT_PORT}:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - backend
+
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    networks:
+      - backend
+      - frontend
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - frontend
+      - backend
+
+  mongodb-exporter:
+    image: bitnami/mongodb-exporter:0.39.0
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=${MONGO_URI}
+    ports:
+      - "${MONGODB_EXPORTER_PORT}:9216"
+    depends_on:
+      - mongo
+    networks:
+      - backend
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=${POSTGRES_EXPORTER_DSN}
+    ports:
+      - "${POSTGRES_EXPORTER_PORT}:9187"
+    depends_on:
+      - postgres
+    networks:
+      - backend
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:v1.0.0-RC19
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASS}
+      - RABBITMQ_URL=http://rabbitmq:15672
+    ports:
+      - "${RABBITMQ_EXPORTER_PORT}:9419"
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "${ELASTIC_PORT}:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - backend
+      - frontend
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.2
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT}:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - frontend
+
+  fluent-bit:
+    image: cr.fluentbit.io/fluent/fluent-bit:2.2
+    restart: unless-stopped
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - backend
+
+  ui:
+    build:
+      context: ../ui
+    env_file: ../.env
+    environment:
+      - VITE_API_BASE=${UI_API_BASE}
+    ports:
+      - "${UI_PORT}:5173"
+    networks:
+      - frontend
+
+networks:
+  backend:
+  frontend:
+
+volumes:
+  mongo_data:
+  postgres_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+  es_data:

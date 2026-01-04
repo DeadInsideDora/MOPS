@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcbbf0f3-09f0-4921-8e73-59dc67c0af0b" name="Changes" comment="Init skeletons of repo" />
+    <list default="true" id="bcbbf0f3-09f0-4921-8e73-59dc67c0af0b" name="Changes" comment="Init skeletons of repo">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -64,7 +66,7 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "editing.templates",
+    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -92,7 +94,7 @@
       <option name="presentableId" value="Default" />
       <updated>1767566394806</updated>
       <workItem from="1767566396006" duration="1806000" />
-      <workItem from="1767568268441" duration="492000" />
+      <workItem from="1767568268441" duration="1008000" />
     </task>
     <task id="LOCAL-00001" summary="Init skeletons">
       <option name="closed" value="true" />
@@ -126,7 +128,15 @@
       <option name="project" value="LOCAL" />
       <updated>1767568305030</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Init skeletons of repo">
+      <option name="closed" value="true" />
+      <created>1767568772508</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1767568772508</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
