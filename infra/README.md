@@ -8,3 +8,5 @@
 - `docker-compose.yml` — каркас сервисов.
 - `prometheus/prometheus.yml` — базовый scrape (будет расширен).
 - `fluent-bit/fluent-bit.conf` — черновик вывода в Elasticsearch.
+- `postgres/init.sql` — таблица `alerts` с индексами.
+- `mongo/init.js` — индексы для `iot.messages`.

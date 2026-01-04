@@ -51,6 +51,7 @@ services:
       - "${MONGO_PORT}:27017"
     volumes:
       - mongo_data:/data/db
+      - ./mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
     networks:
       - backend
 
@@ -79,6 +80,7 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - backend
 
