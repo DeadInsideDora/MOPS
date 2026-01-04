@@ -1,7 +1,7 @@
 # План из 15 этапов
 
 1) Архитектура: формат сообщений, очередь, коллекции/таблицы, события алёртов (готово).  
-2) Репо-скелет: папки services/ui/infra/docs, базовый README/Makefile заготовки.  
+2) Репо-скелет: папки services/ui/infra/docs, базовый README/Makefile заготовки, .env.example.  
 3) Docker Compose каркас: сервисы (controller, rule-engine, simulator, mongo, rabbitmq, postgres, grafana, elastic+kibana, prometheus+exporters), сети/volumes.  
 4) Схемы данных: Mongo коллекция/индексы, Postgres `alerts` DDL, env образцы.  
 5) Flask IoT controller: `/ingest` валидация JSON, запись в Mongo, publish в RabbitMQ, healthcheck.  
