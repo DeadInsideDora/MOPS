@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="bcbbf0f3-09f0-4921-8e73-59dc67c0af0b" name="Changes" comment="Init skeletons" />
+    <list default="true" id="bcbbf0f3-09f0-4921-8e73-59dc67c0af0b" name="Changes" comment="Init skeletons of repo" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -14,12 +14,12 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RESET_MODE" value="HARD" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "DeadInsideDora"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;DeadInsideDora&quot;
   }
-}]]></component>
+}</component>
   <component name="GitRewordedCommitMessages">
     <option name="commitMessagesMapping">
       <RewordedCommitMessageMapping>
@@ -30,15 +30,22 @@
     <option name="currentCommit" value="1" />
     <option name="onto" value="7ae27ba3b94bd5f44c666a5fed599b57a4f43057" />
   </component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/DeadInsideDora/MOPS.git",
-    "accountId": "1773523e-29b0-40a8-9009-e6b43228c767"
+  <component name="GithubProjectSettings">
+    <option name="branchProtectionPatterns">
+      <list>
+        <option value="main" />
+      </list>
+    </option>
+  </component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/DeadInsideDora/MOPS.git&quot;,
+    &quot;accountId&quot;: &quot;1773523e-29b0-40a8-9009-e6b43228c767&quot;
   }
-}]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 0
-}]]></component>
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0
+}</component>
   <component name="ProjectId" id="37oPLQniTeeeDxvWL1w7aL05Usz" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -49,6 +56,8 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
     "last_opened_file_path": "/Users/arseny/itmo/MOPS/infra/prometheus",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -83,6 +92,7 @@
       <option name="presentableId" value="Default" />
       <updated>1767566394806</updated>
       <workItem from="1767566396006" duration="1806000" />
+      <workItem from="1767568268441" duration="492000" />
     </task>
     <task id="LOCAL-00001" summary="Init skeletons">
       <option name="closed" value="true" />
@@ -108,7 +118,15 @@
       <option name="project" value="LOCAL" />
       <updated>1767567366849</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Init skeletons of repo">
+      <option name="closed" value="true" />
+      <created>1767568305030</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1767568305030</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -127,6 +145,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Init skeletons" />
-    <option name="LAST_COMMIT_MESSAGE" value="Init skeletons" />
+    <MESSAGE value="Init skeletons of repo" />
+    <option name="LAST_COMMIT_MESSAGE" value="Init skeletons of repo" />
   </component>
 </project>
