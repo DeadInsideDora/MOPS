@@ -87,11 +87,49 @@ def create_app() -> Flask:
     def health():
         return jsonify({"status": "ok", "time": datetime.utcnow().isoformat()}), 200
 
+    @app.route("/messages", methods=["GET"])
+    def list_messages():
+        """
+        Возвращает последние сообщения. Поддерживает фильтр по device_id и лимит.
+        GET /messages?device_id=42&limit=50
+        """
+        device_id = request.args.get("device_id")
+        try:
+            limit = int(request.args.get("limit", "100"))
+            limit = min(max(limit, 1), 500)
+        except ValueError:
+            return jsonify({"error": "limit must be int"}), 400
+
+        query = {}
+        if device_id:
+            query["device_id"] = str(device_id)
+        docs = (
+            messages.find(query).sort("ts", -1).limit(limit)
+        )
+        return jsonify([serialize_doc(d) for d in docs]), 200
+
+    @app.route("/stats", methods=["GET"])
+    def stats():
+        """
+        Быстрые агрегаты: количество сообщений и последние по device_id.
+        """
+        total = messages.estimated_document_count()
+        latest_cursor = messages.find().sort("ts", -1).limit(1)
+        latest_item = next(latest_cursor, None)
+        latest_doc = serialize_doc(latest_item) if latest_item else None
+        return jsonify({"messages_total": total, "latest": latest_doc}), 200
+
     @app.route("/metrics")
     def metrics():
         return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
     return app
+
+
+def serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
+    doc = dict(doc)
+    doc.pop("_id", None)
+    return doc
 
 
 app = create_app()
