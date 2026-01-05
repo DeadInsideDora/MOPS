@@ -113,7 +113,7 @@ services:
       - backend
 
   mongodb-exporter:
-    image: bitnami/mongodb-exporter:0.39.0
+    image: bitnami/mongodb-exporter:latest
     restart: unless-stopped
     environment:
       - MONGODB_URI=${MONGO_URI}
@@ -137,7 +137,7 @@ services:
       - backend
 
   rabbitmq-exporter:
-    image: kbudde/rabbitmq-exporter:v1.0.0-RC19
+    image: kbudde/rabbitmq-exporter:latest
     restart: unless-stopped
     environment:
       - RABBITMQ_USER=${RABBITMQ_USER}
@@ -185,17 +185,6 @@ services:
       - elasticsearch
     networks:
       - backend
-
-  ui:
-    build:
-      context: ../ui
-    env_file: ../.env
-    environment:
-      - VITE_API_BASE=${UI_API_BASE}
-    ports:
-      - "${UI_PORT}:5173"
-    networks:
-      - frontend
 
 networks:
   backend:
