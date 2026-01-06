@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from pymongo import MongoClient
 import pika
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
@@ -12,6 +13,7 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 
 def create_app() -> Flask:
     app = Flask(__name__)
+    CORS(app)
 
     mongo_uri = os.getenv("MONGO_URI") or "mongodb://mongo:27017/iot"
     rabbitmq_url = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
