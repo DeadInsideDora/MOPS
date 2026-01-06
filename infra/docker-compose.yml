@@ -134,12 +134,12 @@ services:
       - backend
 
   rabbitmq-exporter:
-    image: kbudde/rabbitmq-exporter:latest
+    image: kbudde/rabbitmq-exporter:v1.0.0-RC19
     restart: unless-stopped
     environment:
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
-      - RABBITMQ_URL=http://rabbitmq:15672
+      - RABBIT_USER=${RABBITMQ_USER:-guest}
+      - RABBIT_PASSWORD=${RABBITMQ_PASS:-guest}
+      - RABBIT_URL=http://rabbitmq:15672
     ports:
       - "${RABBITMQ_EXPORTER_PORT:-9419}:9419"
     depends_on:
