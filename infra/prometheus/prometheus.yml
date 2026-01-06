@@ -8,12 +8,14 @@ scrape_configs:
       - targets: ["prometheus:9090"]
 
   - job_name: iot-controller
+    metrics_path: /metrics
     static_configs:
-      - targets: ["iot-controller:${CONTROLLER_METRICS_PORT}"]
+      - targets: ["iot-controller:8000"]
 
   - job_name: rule-engine
+    metrics_path: /metrics
     static_configs:
-      - targets: ["rule-engine:${RULE_ENGINE_METRICS_PORT}"]
+      - targets: ["rule-engine:9001"]
 
   - job_name: mongodb-exporter
     static_configs:
