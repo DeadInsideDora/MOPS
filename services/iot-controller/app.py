@@ -2,6 +2,7 @@ import os
 import json
 import time
 import uuid
+import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -18,9 +19,15 @@ def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app)
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logger = logging.getLogger("iot-controller")
+
     mongo_uri = os.getenv("MONGO_URI") or "mongodb://mongo:27017/iot"
     rabbitmq_url = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
     jwt_secret = os.getenv("JWT_SECRET") or "dev-secret"
+    default_owner_email = os.getenv("DEFAULT_OWNER_EMAIL") or "senya@example.com"
+    default_owner_password = os.getenv("DEFAULT_OWNER_PASSWORD") or "senya123"
+    default_owner_name = os.getenv("DEFAULT_OWNER_NAME") or "Senya"
 
     def connect_mongo(uri: str, retries: int = 10, delay: float = 2.0):
         last_exc = None
@@ -52,6 +59,51 @@ def create_app() -> Flask:
     users = mongo_db.users
     devices = mongo_db.devices
 
+    def ensure_default_user_and_devices():
+        user = users.find_one({"email": default_owner_email})
+        created_user = False
+        if not user:
+            user_id = str(uuid.uuid4())
+            users.insert_one(
+                {
+                    "_id": user_id,
+                    "email": default_owner_email,
+                    "name": default_owner_name,
+                    "password_hash": generate_password_hash(default_owner_password),
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            )
+            user = users.find_one({"email": default_owner_email})
+            created_user = True
+
+        # seed 15 devices for owner
+        existing_count = devices.count_documents({"owner_id": user["_id"]})
+        to_create = max(0, 15 - existing_count)
+        for idx in range(to_create):
+            dev_id = f"dev-{uuid.uuid4().hex[:8]}"
+            devices.insert_one(
+                {
+                    "_id": dev_id,
+                    "name": f"Device {existing_count + idx + 1}",
+                    "description": f"Default device {existing_count + idx + 1}",
+                    "external_id": str(existing_count + idx + 1),
+                    "owner_id": user["_id"],
+                    "owner_email": user["email"],
+                    "created_at": datetime.utcnow().isoformat(),
+                    "created_by": user["email"],
+                }
+            )
+        if created_user or to_create > 0:
+            logger.info(
+                "seed_defaults",
+                extra={
+                    "user_created": created_user,
+                    "owner_email": user["email"],
+                    "devices_added": to_create,
+                },
+            )
+        return user
+
     rabbit_conn = connect_rabbit(rabbitmq_url)
     channel = rabbit_conn.channel()
     exchange_name = "iot.msg"
@@ -63,6 +115,8 @@ def create_app() -> Flask:
     mongo_fail = Counter("iot_controller_mongo_failed_total", "Mongo write failures")
     rabbit_fail = Counter("iot_controller_rabbit_failed_total", "Rabbit publish failures")
     req_latency = Histogram("iot_controller_request_seconds", "Ingest request latency seconds")
+
+    default_user = ensure_default_user_and_devices()
 
     def create_token(user: Dict[str, Any]) -> str:
         payload = {
@@ -103,6 +157,12 @@ def create_app() -> Flask:
         payload["seq"] = int(payload["seq"])
         payload.setdefault("meta", {})
         return payload
+
+    def resolve_device_owner(device_id: str) -> Dict[str, Optional[str]]:
+        dev = devices.find_one({"_id": device_id}) or devices.find_one({"external_id": device_id})
+        if not dev:
+            return {"owner_id": None, "owner_email": None, "device_ref": None}
+        return {"owner_id": dev.get("owner_id"), "owner_email": dev.get("owner_email"), "device_ref": dev.get("_id")}
 
     @app.route("/auth/register", methods=["POST"])
     def register():
@@ -158,6 +218,8 @@ def create_app() -> Flask:
             validation_fail.inc()
             req_fail.inc()
             return jsonify({"error": str(exc)}), 400
+        owner_info = resolve_device_owner(validated["device_id"])
+        validated.update(owner_info)
         try:
             doc = dict(validated)
             messages.insert_one(doc)
@@ -188,9 +250,13 @@ def create_app() -> Flask:
     @app.route("/messages", methods=["GET"])
     def list_messages():
         """
-        Возвращает последние сообщения. Поддерживает фильтр по device_id и лимит.
+        Возвращает последние сообщения текущего пользователя.
+        Поддерживает фильтр по device_id и лимит.
         GET /messages?device_id=42&limit=50
         """
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
         device_id = request.args.get("device_id")
         try:
             limit = int(request.args.get("limit", "100"))
@@ -198,12 +264,10 @@ def create_app() -> Flask:
         except ValueError:
             return jsonify({"error": "limit must be int"}), 400
 
-        query = {}
+        query = {"owner_id": user["_id"]}
         if device_id:
             query["device_id"] = str(device_id)
-        docs = (
-            messages.find(query).sort("ts", -1).limit(limit)
-        )
+        docs = messages.find(query).sort("ts", -1).limit(limit)
         return jsonify([serialize_doc(d) for d in docs]), 200
 
     @app.route("/stats", methods=["GET"])
@@ -211,8 +275,12 @@ def create_app() -> Flask:
         """
         Быстрые агрегаты: количество сообщений и последние по device_id.
         """
-        total = messages.estimated_document_count()
-        latest_cursor = messages.find().sort("ts", -1).limit(1)
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
+        query = {"owner_id": user["_id"]}
+        total = messages.count_documents(query)
+        latest_cursor = messages.find(query).sort("ts", -1).limit(1)
         latest_item = next(latest_cursor, None)
         latest_doc = serialize_doc(latest_item) if latest_item else None
         return jsonify({"messages_total": total, "latest": latest_doc}), 200
@@ -223,7 +291,7 @@ def create_app() -> Flask:
         if not user:
             return jsonify({"error": "unauthorized"}), 401
         if request.method == "GET":
-            docs = devices.find().sort("created_at", -1)
+            docs = devices.find({"owner_id": user["_id"]}).sort("created_at", -1)
             return jsonify([serialize_doc(d) for d in docs]), 200
         # POST
         data = request.get_json(force=True, silent=True) or {}
@@ -233,14 +301,25 @@ def create_app() -> Flask:
         if not name:
             return jsonify({"error": "name_required"}), 400
         device = {
-            "_id": str(uuid.uuid4()),
+            "_id": f"dev-{uuid.uuid4().hex[:8]}",
             "name": name,
             "description": description,
             "external_id": external_id,
             "created_at": datetime.utcnow().isoformat(),
             "created_by": user["email"],
+            "owner_id": user["_id"],
+            "owner_email": user["email"],
         }
         devices.insert_one(device)
+        logger.info(
+            "device_created",
+            extra={
+                "device_id": device["_id"],
+                "name": name,
+                "created_by": user["email"],
+                "external_id": external_id,
+            },
+        )
         return jsonify(serialize_doc(device)), 201
 
     @app.route("/devices/<device_id>", methods=["GET", "PUT", "DELETE"])
@@ -248,13 +327,13 @@ def create_app() -> Flask:
         user = require_auth()
         if not user:
             return jsonify({"error": "unauthorized"}), 401
-        existing = devices.find_one({"_id": device_id})
+        existing = devices.find_one({"_id": device_id, "owner_id": user["_id"]})
         if not existing:
             return jsonify({"error": "not_found"}), 404
         if request.method == "GET":
             return jsonify(serialize_doc(existing)), 200
         if request.method == "DELETE":
-            devices.delete_one({"_id": device_id})
+            devices.delete_one({"_id": device_id, "owner_id": user["_id"]})
             return jsonify({"status": "deleted"}), 200
         # PUT
         data = request.get_json(force=True, silent=True) or {}
@@ -267,8 +346,8 @@ def create_app() -> Flask:
             val = str(data["external_id"]).strip()
             updates["external_id"] = val or None
         if updates:
-            devices.update_one({"_id": device_id}, {"$set": updates})
-        new_doc = devices.find_one({"_id": device_id})
+            devices.update_one({"_id": device_id, "owner_id": user["_id"]}, {"$set": updates})
+        new_doc = devices.find_one({"_id": device_id, "owner_id": user["_id"]})
         return jsonify(serialize_doc(new_doc)), 200
 
     @app.route("/metrics")
@@ -279,8 +358,11 @@ def create_app() -> Flask:
 
 
 def serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
+    if doc is None:
+        return {}
     doc = dict(doc)
-    doc.pop("_id", None)
+    if "_id" in doc:
+        doc["_id"] = str(doc["_id"])
     return doc
 
 
