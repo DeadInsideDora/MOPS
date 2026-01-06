@@ -89,15 +89,37 @@ def insert_alert(conn, device_id: str, rule_id: str, rule_type: str, payload: Di
     conn.commit()
 
 
+def connect_postgres_with_retry(dsn: str, retries: int = 20, delay: float = 3.0):
+    last_exc = None
+    for _ in range(retries):
+        try:
+            return psycopg.connect(dsn)
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(delay)
+    raise last_exc
+
+
+def connect_rabbit_with_retry(url: str, retries: int = 20, delay: float = 3.0):
+    last_exc = None
+    for _ in range(retries):
+        try:
+            params = pika.URLParameters(url)
+            conn = pika.BlockingConnection(params)
+            return conn.channel()
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(delay)
+    raise last_exc
+
+
 def main():
     start_http_server(METRICS_PORT)
 
-    pg_conn = psycopg.connect(POSTGRES_DSN)
+    pg_conn = connect_postgres_with_retry(POSTGRES_DSN)
     ensure_db(pg_conn)
 
-    params = pika.URLParameters(RABBITMQ_URL)
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
+    channel = connect_rabbit_with_retry(RABBITMQ_URL)
     channel.exchange_declare(exchange=exchange_name, exchange_type="topic", durable=True)
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(queue=queue_name, exchange=exchange_name, routing_key="device.*")

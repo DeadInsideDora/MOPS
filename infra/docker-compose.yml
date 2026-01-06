@@ -4,27 +4,25 @@ services:
   iot-controller:
     build:
       context: ../services/iot-controller
-    env_file: ../.env
     environment:
-      - MONGO_URI=${MONGO_URI}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - PROMETHEUS_PORT=${CONTROLLER_METRICS_PORT}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/iot}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - PROMETHEUS_PORT=${CONTROLLER_METRICS_PORT:-9000}
     depends_on:
       - mongo
       - rabbitmq
     ports:
-      - "${CONTROLLER_PORT}:8000"
+      - "${CONTROLLER_PORT:-8000}:8000"
     networks:
       - backend
 
   rule-engine:
     build:
       context: ../services/rule-engine
-    env_file: ../.env
     environment:
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - POSTGRES_DSN=${POSTGRES_DSN}
-      - PROMETHEUS_PORT=${RULE_ENGINE_METRICS_PORT}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://iot:iot@postgres:5432/iot}
+      - PROMETHEUS_PORT=${RULE_ENGINE_METRICS_PORT:-9001}
     depends_on:
       - rabbitmq
       - postgres
@@ -34,11 +32,10 @@ services:
   data-simulator:
     build:
       context: ../services/data-simulator
-    env_file: ../.env
     environment:
-      - CONTROLLER_URL=${CONTROLLER_URL}
-      - DEVICES_COUNT=${SIM_DEVICES_COUNT}
-      - SEND_INTERVAL=${SIM_SEND_INTERVAL}
+      - CONTROLLER_URL=${CONTROLLER_URL:-http://iot-controller:8000}
+      - DEVICES_COUNT=${SIM_DEVICES_COUNT:-15}
+      - SEND_INTERVAL=${SIM_SEND_INTERVAL:-1}
     depends_on:
       - iot-controller
     networks:
@@ -48,7 +45,7 @@ services:
     image: mongo:6
     restart: unless-stopped
     ports:
-      - "${MONGO_PORT}:27017"
+      - "${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
       - ./mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
@@ -59,11 +56,11 @@ services:
     image: rabbitmq:3.12-management
     restart: unless-stopped
     ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MGMT_PORT}:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
@@ -73,11 +70,11 @@ services:
     image: postgres:15
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-iot}
+      - POSTGRES_USER=${POSTGRES_USER:-iot}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-iot}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -91,7 +88,7 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT}:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
       - backend
       - frontend
@@ -100,12 +97,12 @@ services:
     image: grafana/grafana:10.2.2
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-admin}
     volumes:
       - grafana_data:/var/lib/grafana
     ports:
-      - "${GRAFANA_PORT}:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
     networks:
@@ -116,21 +113,21 @@ services:
     image: bitnami/mongodb-exporter:latest
     restart: unless-stopped
     environment:
-      - MONGODB_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGO_URI:-mongodb://mongo:27017/iot}
     ports:
-      - "${MONGODB_EXPORTER_PORT}:9216"
+      - "${MONGODB_EXPORTER_PORT:-9216}:9216"
     depends_on:
       - mongo
     networks:
       - backend
 
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
+    image: prometheuscommunity/postgres-exporter:latest
     restart: unless-stopped
     environment:
-      - DATA_SOURCE_NAME=${POSTGRES_EXPORTER_DSN}
+      - DATA_SOURCE_NAME=${POSTGRES_EXPORTER_DSN:-postgresql://iot:iot@postgres:5432/postgres?sslmode=disable}
     ports:
-      - "${POSTGRES_EXPORTER_PORT}:9187"
+      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
     depends_on:
       - postgres
     networks:
@@ -140,11 +137,11 @@ services:
     image: kbudde/rabbitmq-exporter:latest
     restart: unless-stopped
     environment:
-      - RABBITMQ_USER=${RABBITMQ_USER}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASS}
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
       - RABBITMQ_URL=http://rabbitmq:15672
     ports:
-      - "${RABBITMQ_EXPORTER_PORT}:9419"
+      - "${RABBITMQ_EXPORTER_PORT:-9419}:9419"
     depends_on:
       - rabbitmq
     networks:
@@ -157,7 +154,7 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
     ports:
-      - "${ELASTIC_PORT}:9200"
+      - "${ELASTIC_PORT:-9200}:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
     networks:
@@ -170,7 +167,7 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     ports:
-      - "${KIBANA_PORT}:5601"
+      - "${KIBANA_PORT:-5601}:5601"
     depends_on:
       - elasticsearch
     networks:

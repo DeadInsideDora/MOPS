@@ -16,12 +16,35 @@ def create_app() -> Flask:
     mongo_uri = os.getenv("MONGO_URI") or "mongodb://mongo:27017/iot"
     rabbitmq_url = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
 
-    mongo_client = MongoClient(mongo_uri)
+    def connect_mongo(uri: str, retries: int = 10, delay: float = 2.0):
+        last_exc = None
+        for _ in range(retries):
+            try:
+                client = MongoClient(uri, serverSelectionTimeoutMS=2000)
+                client.admin.command("ping")
+                return client
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(delay)
+        raise last_exc
+
+    def connect_rabbit(url: str, retries: int = 10, delay: float = 2.0):
+        last_exc = None
+        for _ in range(retries):
+            try:
+                params = pika.URLParameters(url)
+                conn = pika.BlockingConnection(params)
+                return conn
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(delay)
+        raise last_exc
+
+    mongo_client = connect_mongo(mongo_uri)
     mongo_db = mongo_client.get_default_database()
     messages = mongo_db.messages
 
-    params = pika.URLParameters(rabbitmq_url)
-    rabbit_conn = pika.BlockingConnection(params)
+    rabbit_conn = connect_rabbit(rabbitmq_url)
     channel = rabbit_conn.channel()
     exchange_name = "iot.msg"
     channel.exchange_declare(exchange=exchange_name, exchange_type="topic", durable=True)
