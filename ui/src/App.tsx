@@ -79,12 +79,18 @@ export default function App() {
   }, [deviceFilter]);
 
   const loadMessages = async () => {
+    if (!token) {
+      setError("Login to see messages");
+      setMessages([]);
+      setStats(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const [msgs, st] = await Promise.all([
-        fetchJson<Message[]>(`/messages?${query}`),
-        fetchJson<Stats>("/stats"),
+        fetchJson<Message[]>(`/messages?${query}`, { headers }),
+        fetchJson<Stats>("/stats", { headers }),
       ]);
       setMessages(msgs);
       setStats(st);
@@ -121,7 +127,7 @@ export default function App() {
       localStorage.setItem("token", res.token);
       localStorage.setItem("email", res.email);
       setAuthPassword("");
-      loadDevices();
+      await Promise.all([loadDevices(), loadMessages()]);
     } catch (e: any) {
       setAuthError(e.message || "Auth error");
     }
@@ -211,25 +217,27 @@ export default function App() {
       {authError && <div className="error">Auth: {authError}</div>}
       {error && <div className="error">Error: {error}</div>}
 
-      <section className="stats">
-        <div className="card">
-          <div className="label">Messages total</div>
-          <div className="value">{stats?.messages_total ?? "—"}</div>
-        </div>
-        <div className="card">
-          <div className="label">Latest</div>
-          <div className="value small">
-            {stats?.latest ? (
-              <>
-                <strong>{stats.latest.device_id}</strong> #{stats.latest.seq} —{" "}
-                {formatTs(stats.latest.ts)} — A:{stats.latest.field_a} B:{stats.latest.field_b}
-              </>
-            ) : (
-              "—"
-            )}
+      {token && (
+        <section className="stats">
+          <div className="card">
+            <div className="label">Messages total</div>
+            <div className="value">{stats?.messages_total ?? "—"}</div>
           </div>
-        </div>
-      </section>
+          <div className="card">
+            <div className="label">Latest</div>
+            <div className="value small">
+              {stats?.latest ? (
+                <>
+                  <strong>{stats.latest.device_id}</strong> #{stats.latest.seq} —{" "}
+                  {formatTs(stats.latest.ts)} — A:{stats.latest.field_a} B:{stats.latest.field_b}
+                </>
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="panel">
         <div className="panel-header">
@@ -240,7 +248,7 @@ export default function App() {
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
             />
-            <button onClick={loadMessages} disabled={loading}>
+            <button onClick={loadMessages} disabled={loading || !token}>
               {loading ? "Loading..." : "Refresh"}
             </button>
           </div>
@@ -271,7 +279,7 @@ export default function App() {
               {messages.length === 0 && (
                 <tr>
                   <td colSpan={6} className="muted">
-                    No data yet
+                    {token ? "No data yet" : "Login to see messages"}
                   </td>
                 </tr>
               )}
