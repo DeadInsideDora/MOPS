@@ -15,10 +15,6 @@ METRICS_PORT = int(os.getenv("PROMETHEUS_PORT", "9001") or "9001")
 exchange_name = "iot.msg"
 queue_name = "iot.rules"
 
-rule_instant_device = "42"
-rule_instant_threshold = 5.0
-rule_persistent_count = 10
-
 rule_hits = Counter("rule_engine_hits_total", "Rule hits", ["rule_id"])
 rule_processed = Counter("rule_engine_processed_total", "Messages processed")
 rule_errors = Counter("rule_engine_errors_total", "Processing errors")
@@ -46,35 +42,18 @@ def ensure_db(conn):
     conn.commit()
 
 
-def handle_message(body: bytes, state: Dict[str, int], pg_conn) -> None:
+def handle_message(body: bytes, pg_conn) -> None:
     payload: Dict[str, Any] = json.loads(body.decode("utf-8"))
     device_id = str(payload.get("device_id"))
     field_a = float(payload.get("field_a", 0))
+    field_b = float(payload.get("field_b", 0))
 
     rule_processed.inc()
-    if device_id == rule_instant_device and field_a > rule_instant_threshold:
-        rule_id = "instant_42_a_gt_5"
+
+    if field_a > 8 or field_b < 0.4:
+        rule_id = "a_gt_8_or_b_lt_0_4"
         rule_hits.labels(rule_id=rule_id).inc()
         insert_alert(pg_conn, device_id, rule_id, "instant", payload, 1, severity=1)
-
-    if device_id == rule_instant_device and field_a > rule_instant_threshold:
-        state[device_id] = state.get(device_id, 0) + 1
-    else:
-        state[device_id] = 0
-
-    if state.get(device_id, 0) >= rule_persistent_count:
-        rule_id = "persistent_42_a_gt_5"
-        rule_hits.labels(rule_id=rule_id).inc()
-        insert_alert(
-            pg_conn,
-            device_id,
-            rule_id,
-            "persistent",
-            payload,
-            count=state[device_id],
-            severity=2,
-        )
-        state[device_id] = 0
 
 
 def insert_alert(conn, device_id: str, rule_id: str, rule_type: str, payload: Dict[str, Any], count: int, severity: int):
@@ -124,12 +103,10 @@ def main():
     channel.queue_declare(queue=queue_name, durable=True)
     channel.queue_bind(queue=queue_name, exchange=exchange_name, routing_key="device.*")
 
-    state: Dict[str, int] = {}
-
     def callback(ch, method, properties, body):
         start = time.time()
         try:
-            handle_message(body, state, pg_conn)
+            handle_message(body, pg_conn)
         except Exception:
             rule_errors.inc()
         finally:

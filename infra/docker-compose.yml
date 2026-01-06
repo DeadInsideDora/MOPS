@@ -6,9 +6,11 @@ services:
       - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/iot}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
       - PROMETHEUS_PORT=${CONTROLLER_METRICS_PORT:-9000}
+      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://iot:iot@postgres:5432/iot}
     depends_on:
       - mongo
       - rabbitmq
+      - postgres
     ports:
       - "${CONTROLLER_PORT:-8000}:8000"
     networks:

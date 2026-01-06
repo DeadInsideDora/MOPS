@@ -14,6 +14,7 @@ import pika
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
+import psycopg
 
 
 def create_app() -> Flask:
@@ -30,6 +31,7 @@ def create_app() -> Flask:
     default_owner_password = os.getenv("DEFAULT_OWNER_PASSWORD") or "senya123"
     default_owner_name = os.getenv("DEFAULT_OWNER_NAME") or "Senya"
     sim_api_key = os.getenv("SIM_API_KEY") or "sim-key"
+    pg_dsn = os.getenv("POSTGRES_DSN") or "postgresql://iot:iot@postgres:5432/iot"
 
     def connect_mongo(uri: str, retries: int = 10, delay: float = 2.0):
         last_exc = None
@@ -50,6 +52,16 @@ def create_app() -> Flask:
                 params = pika.URLParameters(url)
                 conn = pika.BlockingConnection(params)
                 return conn
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(delay)
+        raise last_exc
+
+    def connect_postgres_with_retry(dsn: str, retries: int = 10, delay: float = 3.0):
+        last_exc = None
+        for _ in range(retries):
+            try:
+                return psycopg.connect(dsn)
             except Exception as exc:
                 last_exc = exc
                 time.sleep(delay)
@@ -119,6 +131,7 @@ def create_app() -> Flask:
     req_latency = Histogram("iot_controller_request_seconds", "Ingest request latency seconds")
 
     default_user = ensure_default_user_and_devices()
+    pg_conn = connect_postgres_with_retry(pg_dsn)
 
     def slugify(name: str) -> str:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", name.strip().lower()).strip("-")
@@ -302,6 +315,42 @@ def create_app() -> Flask:
         latest_item = next(latest_cursor, None)
         latest_doc = serialize_doc(latest_item) if latest_item else None
         return jsonify({"messages_total": total, "latest": latest_doc}), 200
+
+    @app.route("/alerts", methods=["GET"])
+    def list_alerts():
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
+        limit = 50
+        rows = []
+        try:
+            with pg_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, device_id, rule_id, rule_type, triggered_at, payload, count, severity
+                    FROM alerts
+                    WHERE payload->>'owner_id' = %s
+                    ORDER BY triggered_at DESC
+                    LIMIT %s
+                    """,
+                    (str(user["_id"]), limit),
+                )
+                for r in cur.fetchall():
+                    rows.append(
+                        {
+                            "id": str(r[0]),
+                            "device_id": r[1],
+                            "rule_id": r[2],
+                            "rule_type": r[3],
+                            "triggered_at": r[4].isoformat() if r[4] else None,
+                            "payload": r[5],
+                            "count": r[6],
+                            "severity": r[7],
+                        }
+                    )
+        except Exception as exc:
+            return jsonify({"error": "db_error", "details": str(exc)}), 500
+        return jsonify(rows), 200
 
     @app.route("/devices", methods=["GET", "POST"])
     def devices_collection():
