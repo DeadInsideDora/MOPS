@@ -1,14 +1,17 @@
 import os
 import json
 import time
-from datetime import datetime
-from typing import Any, Dict
+import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from pymongo import MongoClient
 import pika
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import jwt
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 def create_app() -> Flask:
@@ -17,6 +20,7 @@ def create_app() -> Flask:
 
     mongo_uri = os.getenv("MONGO_URI") or "mongodb://mongo:27017/iot"
     rabbitmq_url = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
+    jwt_secret = os.getenv("JWT_SECRET") or "dev-secret"
 
     def connect_mongo(uri: str, retries: int = 10, delay: float = 2.0):
         last_exc = None
@@ -45,6 +49,8 @@ def create_app() -> Flask:
     mongo_client = connect_mongo(mongo_uri)
     mongo_db = mongo_client.get_default_database()
     messages = mongo_db.messages
+    users = mongo_db.users
+    devices = mongo_db.devices
 
     rabbit_conn = connect_rabbit(rabbitmq_url)
     channel = rabbit_conn.channel()
@@ -58,6 +64,33 @@ def create_app() -> Flask:
     rabbit_fail = Counter("iot_controller_rabbit_failed_total", "Rabbit publish failures")
     req_latency = Histogram("iot_controller_request_seconds", "Ingest request latency seconds")
 
+    def create_token(user: Dict[str, Any]) -> str:
+        payload = {
+            "sub": str(user["_id"]),
+            "email": user["email"],
+            "exp": datetime.utcnow() + timedelta(days=7),
+        }
+        return jwt.encode(payload, jwt_secret, algorithm="HS256")
+
+    def decode_token(token: str) -> Optional[Dict[str, Any]]:
+        try:
+            return jwt.decode(token, jwt_secret, algorithms=["HS256"])
+        except Exception:
+            return None
+
+    def require_auth():
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header.split(" ", 1)[1].strip()
+        data = decode_token(token)
+        if not data:
+            return None
+        user = users.find_one({"_id": data["sub"]}) or users.find_one({"_id": str(data["sub"])})
+        if user:
+            g.user = user
+        return user
+
     def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         required = ["device_id", "ts", "field_a", "field_b", "battery", "seq"]
         if not all(k in payload for k in required):
@@ -70,6 +103,45 @@ def create_app() -> Flask:
         payload["seq"] = int(payload["seq"])
         payload.setdefault("meta", {})
         return payload
+
+    @app.route("/auth/register", methods=["POST"])
+    def register():
+        data = request.get_json(force=True, silent=True) or {}
+        email = str(data.get("email", "")).strip().lower()
+        password = str(data.get("password", "")).strip()
+        if not email or not password:
+            return jsonify({"error": "email and password required"}), 400
+        if users.find_one({"email": email}):
+            return jsonify({"error": "user_exists"}), 409
+        user_id = str(uuid.uuid4())
+        users.insert_one(
+            {
+                "_id": user_id,
+                "email": email,
+                "password_hash": generate_password_hash(password),
+                "created_at": datetime.utcnow().isoformat(),
+            }
+        )
+        token = create_token({"_id": user_id, "email": email})
+        return jsonify({"token": token, "email": email}), 201
+
+    @app.route("/auth/login", methods=["POST"])
+    def login():
+        data = request.get_json(force=True, silent=True) or {}
+        email = str(data.get("email", "")).strip().lower()
+        password = str(data.get("password", "")).strip()
+        user = users.find_one({"email": email})
+        if not user or not check_password_hash(user["password_hash"], password):
+            return jsonify({"error": "invalid_credentials"}), 401
+        token = create_token(user)
+        return jsonify({"token": token, "email": user["email"]}), 200
+
+    @app.route("/me", methods=["GET"])
+    def me():
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
+        return jsonify({"email": user["email"]}), 200
 
     @app.route("/ingest", methods=["POST"])
     def ingest():
@@ -144,6 +216,60 @@ def create_app() -> Flask:
         latest_item = next(latest_cursor, None)
         latest_doc = serialize_doc(latest_item) if latest_item else None
         return jsonify({"messages_total": total, "latest": latest_doc}), 200
+
+    @app.route("/devices", methods=["GET", "POST"])
+    def devices_collection():
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
+        if request.method == "GET":
+            docs = devices.find().sort("created_at", -1)
+            return jsonify([serialize_doc(d) for d in docs]), 200
+        # POST
+        data = request.get_json(force=True, silent=True) or {}
+        name = str(data.get("name", "")).strip()
+        description = str(data.get("description", "")).strip()
+        external_id = str(data.get("external_id", "")).strip() or None
+        if not name:
+            return jsonify({"error": "name_required"}), 400
+        device = {
+            "_id": str(uuid.uuid4()),
+            "name": name,
+            "description": description,
+            "external_id": external_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "created_by": user["email"],
+        }
+        devices.insert_one(device)
+        return jsonify(serialize_doc(device)), 201
+
+    @app.route("/devices/<device_id>", methods=["GET", "PUT", "DELETE"])
+    def device_item(device_id: str):
+        user = require_auth()
+        if not user:
+            return jsonify({"error": "unauthorized"}), 401
+        existing = devices.find_one({"_id": device_id})
+        if not existing:
+            return jsonify({"error": "not_found"}), 404
+        if request.method == "GET":
+            return jsonify(serialize_doc(existing)), 200
+        if request.method == "DELETE":
+            devices.delete_one({"_id": device_id})
+            return jsonify({"status": "deleted"}), 200
+        # PUT
+        data = request.get_json(force=True, silent=True) or {}
+        updates: Dict[str, Any] = {}
+        if "name" in data:
+            updates["name"] = str(data["name"]).strip()
+        if "description" in data:
+            updates["description"] = str(data["description"]).strip()
+        if "external_id" in data:
+            val = str(data["external_id"]).strip()
+            updates["external_id"] = val or None
+        if updates:
+            devices.update_one({"_id": device_id}, {"$set": updates})
+        new_doc = devices.find_one({"_id": device_id})
+        return jsonify(serialize_doc(new_doc)), 200
 
     @app.route("/metrics")
     def metrics():
