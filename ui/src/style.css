@@ -37,6 +37,7 @@ h1 {
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 input {
@@ -62,6 +63,11 @@ button {
 button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+button.ghost {
+  background: #1e293b;
+  color: #e2e8f0;
 }
 
 .stats {
@@ -108,6 +114,21 @@ section h2 {
   margin: 12px 0 8px;
 }
 
+.panel {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border-radius: 12px;
@@ -131,4 +152,15 @@ th {
   color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.device-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.auth-block input {
+  min-width: 140px;
 }

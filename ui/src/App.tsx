@@ -15,6 +15,17 @@ type Stats = {
   latest: Message | null;
 };
 
+type Alert = {
+  id: string;
+  device_id: string;
+  rule_id: string;
+  rule_type: string;
+  triggered_at: string;
+  payload: any;
+  count: number;
+  severity: number;
+};
+
 type Device = {
   _id: string;
   name: string;
@@ -64,6 +75,9 @@ export default function App() {
   const [deviceExternal, setDeviceExternal] = useState("");
   const [deviceError, setDeviceError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const headers = useMemo(() => {
     const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -112,6 +126,17 @@ export default function App() {
     }
   };
 
+  const loadAlerts = async () => {
+    if (!token) return;
+    setAlertsError(null);
+    try {
+      const list = await fetchJson<Alert[]>("/alerts", { headers });
+      setAlerts(list);
+    } catch (e: any) {
+      setAlertsError(e.message || "Error");
+    }
+  };
+
   const handleAuth = async (mode: "login" | "register") => {
     setAuthError(null);
     try {
@@ -127,7 +152,7 @@ export default function App() {
       localStorage.setItem("token", res.token);
       localStorage.setItem("email", res.email);
       setAuthPassword("");
-      await Promise.all([loadDevices(), loadMessages()]);
+      await Promise.all([loadDevices(), loadMessages(), loadAlerts()]);
     } catch (e: any) {
       setAuthError(e.message || "Auth error");
     }
@@ -185,6 +210,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  useEffect(() => {
+    if (token) loadAlerts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   return (
     <div className="page">
       <header>
@@ -211,6 +241,9 @@ export default function App() {
               Logout ({userEmail})
             </button>
           )}
+          <button className="ghost" onClick={() => { setAlertsOpen(!alertsOpen); if (!alertsOpen) loadAlerts(); }}>
+            🔔 {alerts.length}
+          </button>
         </div>
       </header>
 
@@ -235,6 +268,51 @@ export default function App() {
                 "—"
               )}
             </div>
+          </div>
+        </section>
+      )}
+
+      {alertsOpen && token && (
+        <section className="panel">
+          <div className="panel-header">
+            <h2>Alerts</h2>
+            <button className="ghost" onClick={loadAlerts}>
+              Refresh
+            </button>
+          </div>
+          {alertsError && <div className="error">Alerts: {alertsError}</div>}
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>device</th>
+                  <th>rule</th>
+                  <th>time</th>
+                  <th>field_a</th>
+                  <th>field_b</th>
+                  <th>severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((a) => (
+                  <tr key={a.id}>
+                    <td>{a.device_id}</td>
+                    <td>{a.rule_id}</td>
+                    <td>{formatTs(a.triggered_at)}</td>
+                    <td>{a.payload?.field_a ?? "—"}</td>
+                    <td>{a.payload?.field_b ?? "—"}</td>
+                    <td>{a.severity}</td>
+                  </tr>
+                ))}
+                {alerts.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="muted">
+                      No alerts yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
