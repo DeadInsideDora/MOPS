@@ -3,6 +3,7 @@ import json
 import time
 import uuid
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -28,6 +29,7 @@ def create_app() -> Flask:
     default_owner_email = os.getenv("DEFAULT_OWNER_EMAIL") or "senya@example.com"
     default_owner_password = os.getenv("DEFAULT_OWNER_PASSWORD") or "senya123"
     default_owner_name = os.getenv("DEFAULT_OWNER_NAME") or "Senya"
+    sim_api_key = os.getenv("SIM_API_KEY") or "sim-key"
 
     def connect_mongo(uri: str, retries: int = 10, delay: float = 2.0):
         last_exc = None
@@ -117,6 +119,16 @@ def create_app() -> Flask:
     req_latency = Histogram("iot_controller_request_seconds", "Ingest request latency seconds")
 
     default_user = ensure_default_user_and_devices()
+
+    def slugify(name: str) -> str:
+        slug = re.sub(r"[^a-zA-Z0-9]+", "-", name.strip().lower()).strip("-")
+        slug = slug or f"dev-{uuid.uuid4().hex[:6]}"
+        base = slug
+        attempts = 0
+        while devices.find_one({"_id": slug}):
+            attempts += 1
+            slug = f"{base}-{attempts}"
+        return slug
 
     def create_token(user: Dict[str, Any]) -> str:
         payload = {
@@ -293,11 +305,15 @@ def create_app() -> Flask:
 
     @app.route("/devices", methods=["GET", "POST"])
     def devices_collection():
+        sim_key = request.headers.get("X-Sim-Key")
         user = require_auth()
-        if not user:
+        if not user and sim_key != sim_api_key:
             return jsonify({"error": "unauthorized"}), 401
         if request.method == "GET":
-            docs = devices.find({"owner_id": user["_id"]}).sort("created_at", -1)
+            if sim_key == sim_api_key:
+                docs = devices.find().sort("created_at", -1)
+            else:
+                docs = devices.find({"owner_id": user["_id"]}).sort("created_at", -1)
             return jsonify([serialize_doc(d) for d in docs]), 200
         # POST
         data = request.get_json(force=True, silent=True) or {}
@@ -307,7 +323,7 @@ def create_app() -> Flask:
         if not name:
             return jsonify({"error": "name_required"}), 400
         device = {
-            "_id": f"dev-{uuid.uuid4().hex[:8]}",
+            "_id": slugify(name),
             "name": name,
             "description": description,
             "external_id": external_id,

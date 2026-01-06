@@ -32,6 +32,7 @@ SEND_INTERVAL = getenv_float("SEND_INTERVAL", 1.0)
 REFRESH_DEVICES_EVERY = getenv_int("SIM_REFRESH_INTERVAL", 10)
 AUTH_EMAIL = os.getenv("SIM_AUTH_EMAIL") or "senya@example.com"
 AUTH_PASSWORD = os.getenv("SIM_AUTH_PASSWORD") or "senya123"
+SIM_API_KEY = os.getenv("SIM_API_KEY") or "sim-key"
 
 
 def gen_payload(device_id: str, seq: int):
@@ -62,11 +63,15 @@ def auth_token() -> Optional[str]:
         return None
 
 
-def fetch_devices(token: str) -> List[Dict]:
+def fetch_devices(token: Optional[str]) -> List[Dict]:
     try:
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        headers["X-Sim-Key"] = SIM_API_KEY
         resp = requests.get(
             f"{CONTROLLER_URL}/devices",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
             timeout=5,
         )
         if resp.status_code != 200:
@@ -89,7 +94,7 @@ def main():
     )
     while True:
         now = time.time()
-        if token and (now - last_refresh > REFRESH_DEVICES_EVERY):
+        if now - last_refresh > REFRESH_DEVICES_EVERY:
             devices = fetch_devices(token)
             last_refresh = now
             for d in devices:
