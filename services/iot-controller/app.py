@@ -317,15 +317,12 @@ def create_app() -> Flask:
             "owner_email": user["email"],
         }
         devices.insert_one(device)
-        logger.info(
-            "device_created",
-            extra={
-                "device_id": device["_id"],
-                "name": name,
-                "created_by": user["email"],
-                "external_id": external_id,
-            },
-        )
+        try:
+            logger.info(
+                f"device_created id={device['_id']} name={name} owner={user['email']} external_id={external_id}"
+            )
+        except Exception:
+            pass
         return jsonify(serialize_doc(device)), 201
 
     @app.route("/devices/<device_id>", methods=["GET", "PUT", "DELETE"])
