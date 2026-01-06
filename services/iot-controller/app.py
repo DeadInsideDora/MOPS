@@ -13,8 +13,8 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    mongo_uri = os.getenv("MONGO_URI", "mongodb://mongo:27017/iot")
-    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+    mongo_uri = os.getenv("MONGO_URI") or "mongodb://mongo:27017/iot"
+    rabbitmq_url = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
 
     mongo_client = MongoClient(mongo_uri)
     mongo_db = mongo_client.get_default_database()

@@ -7,9 +7,29 @@ from datetime import datetime, timezone
 import requests
 
 
-CONTROLLER_URL = os.getenv("CONTROLLER_URL", "http://iot-controller:8000")
-DEVICES_COUNT = int(os.getenv("DEVICES_COUNT", "15"))
-SEND_INTERVAL = float(os.getenv("SEND_INTERVAL", "1"))
+def getenv_int(name: str, default: int) -> int:
+    val = os.getenv(name, "")
+    if val == "" or val is None:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        return default
+
+
+def getenv_float(name: str, default: float) -> float:
+    val = os.getenv(name, "")
+    if val == "" or val is None:
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        return default
+
+
+CONTROLLER_URL = os.getenv("CONTROLLER_URL") or "http://iot-controller:8000"
+DEVICES_COUNT = getenv_int("DEVICES_COUNT", 15)
+SEND_INTERVAL = getenv_float("SEND_INTERVAL", 1.0)
 
 
 def gen_payload(device_id: int, seq: int):

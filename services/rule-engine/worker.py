@@ -4,13 +4,13 @@ import time
 from typing import Dict, Any
 
 import pika
-import psycopg2
+import psycopg
 from prometheus_client import Counter, Histogram, start_http_server
 
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://iot:iot@postgres:5432/iot")
-METRICS_PORT = int(os.getenv("PROMETHEUS_PORT", "9001"))
+RABBITMQ_URL = os.getenv("RABBITMQ_URL") or "amqp://guest:guest@rabbitmq:5672/"
+POSTGRES_DSN = os.getenv("POSTGRES_DSN") or "postgresql://iot:iot@postgres:5432/iot"
+METRICS_PORT = int(os.getenv("PROMETHEUS_PORT", "9001") or "9001")
 
 exchange_name = "iot.msg"
 queue_name = "iot.rules"
@@ -92,7 +92,7 @@ def insert_alert(conn, device_id: str, rule_id: str, rule_type: str, payload: Di
 def main():
     start_http_server(METRICS_PORT)
 
-    pg_conn = psycopg2.connect(POSTGRES_DSN)
+    pg_conn = psycopg.connect(POSTGRES_DSN)
     ensure_db(pg_conn)
 
     params = pika.URLParameters(RABBITMQ_URL)
