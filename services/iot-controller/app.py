@@ -85,7 +85,8 @@ def create_app() -> Flask:
             req_fail.inc()
             return jsonify({"error": str(exc)}), 400
         try:
-            messages.insert_one(validated)
+            doc = dict(validated)
+            messages.insert_one(doc)
         except Exception as exc:
             mongo_fail.inc()
             req_fail.inc()
@@ -95,7 +96,7 @@ def create_app() -> Flask:
             channel.basic_publish(
                 exchange=exchange_name,
                 routing_key=routing_key,
-                body=json.dumps(validated).encode("utf-8"),
+                body=json.dumps({k: v for k, v in doc.items() if k != "_id"}).encode("utf-8"),
                 properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
             )
         except Exception as exc:
