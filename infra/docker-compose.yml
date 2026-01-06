@@ -183,6 +183,16 @@ services:
     networks:
       - backend
 
+  ui:
+    build:
+      context: ../ui
+    environment:
+      - VITE_API_BASE=${UI_API_BASE:-http://iot-controller:8000}
+    ports:
+      - "${UI_PORT:-5173}:5173"
+    networks:
+      - frontend
+
 networks:
   backend:
   frontend:
