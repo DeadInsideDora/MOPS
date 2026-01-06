@@ -160,9 +160,15 @@ def create_app() -> Flask:
 
     def resolve_device_owner(device_id: str) -> Dict[str, Optional[str]]:
         dev = devices.find_one({"_id": device_id}) or devices.find_one({"external_id": device_id})
-        if not dev:
-            return {"owner_id": None, "owner_email": None, "device_ref": None}
-        return {"owner_id": dev.get("owner_id"), "owner_email": dev.get("owner_email"), "device_ref": dev.get("_id")}
+        if dev:
+            return {"owner_id": dev.get("owner_id"), "owner_email": dev.get("owner_email"), "device_ref": dev.get("_id")}
+        if default_user:
+            return {
+                "owner_id": default_user["_id"],
+                "owner_email": default_user["email"],
+                "device_ref": None,
+            }
+        return {"owner_id": None, "owner_email": None, "device_ref": None}
 
     @app.route("/auth/register", methods=["POST"])
     def register():
