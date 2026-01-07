@@ -20,6 +20,8 @@ rule_processed = Counter("rule_engine_processed_total", "Messages processed")
 rule_errors = Counter("rule_engine_errors_total", "Processing errors")
 rule_latency = Histogram("rule_engine_process_seconds", "Processing latency seconds")
 
+state = {}
+
 
 def ensure_db(conn):
     with conn.cursor() as cur:
@@ -54,6 +56,25 @@ def handle_message(body: bytes, pg_conn) -> None:
         rule_id = "a_gt_8_or_b_lt_0_4"
         rule_hits.labels(rule_id=rule_id).inc()
         insert_alert(pg_conn, device_id, rule_id, "instant", payload, 1, severity=1)
+
+    if device_id != "42":
+        return
+
+    state.setdefault(device_id, 0)
+
+    if field_a > 5:
+        rule_id = "a_gt_5"
+        rule_hits.labels(rule_id=rule_id).inc()
+        insert_alert(pg_conn, device_id, rule_id, "instant", payload, state[device_id], severity=2)
+        state[device_id] += 1
+    else:
+        state[device_id] = 0
+
+    if state[device_id] >= 10:
+        rule_id = "a_gt_5_for_10_packets"
+        rule_hits.labels(rule_id=rule_id).inc()
+        insert_alert(pg_conn, device_id, rule_id, "persistent", payload, state[device_id], severity=1)
+        state[device_id] = 0
 
 
 def insert_alert(conn, device_id: str, rule_id: str, rule_type: str, payload: Dict[str, Any], count: int, severity: int):

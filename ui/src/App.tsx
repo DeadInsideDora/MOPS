@@ -223,19 +223,23 @@ export default function App() {
           <p className="muted">API: {apiBase}</p>
         </div>
         <div className="actions auth-block">
-          <input
-            placeholder="email"
-            value={authEmail}
-            onChange={(e) => setAuthEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="password"
-            value={authPassword}
-            onChange={(e) => setAuthPassword(e.target.value)}
-          />
-          <button onClick={() => handleAuth("login")}>Login</button>
-          <button onClick={() => handleAuth("register")}>Register</button>
+          {!token && (
+            <>
+              <input
+                placeholder="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="password"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+              />
+              <button onClick={() => handleAuth("login")}>Login</button>
+              <button onClick={() => handleAuth("register")}>Register</button>
+            </>
+          )}
           {token && (
             <button className="ghost" onClick={handleLogout}>
               Logout ({userEmail})
