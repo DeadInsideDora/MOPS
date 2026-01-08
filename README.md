@@ -1,3 +1,5 @@
+![](imgs/mops.jpg)
+
 # Simple IoT Service (Flask + Docker Compose)
 
 Учебный проект: простой IoT-поток с контроллером (Flask), rule engine, симулятором данных, брокером RabbitMQ, хранилищем сообщений в MongoDB и алёртов в Postgres, с метриками (Prometheus/Grafana) и логами (ELK). UI — React/Vite.
